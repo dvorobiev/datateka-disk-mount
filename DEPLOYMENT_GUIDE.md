@@ -34,13 +34,42 @@ cd datateka-disk-mount-1.0.0
 
 ### 2. Установка зависимостей Python
 
+Если у вас установлен pip или pip3, используйте:
 ```bash
 pip install -r requirements.txt
+```
+или
+```bash
+pip3 install -r requirements.txt
+```
+
+Если pip не доступен напрямую, попробуйте:
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+Если pip вообще не установлен, установите его:
+```bash
+python3 -m ensurepip --upgrade
+python3 -m pip install -r requirements.txt
 ```
 
 Или установите пакеты вручную:
 ```bash
-pip install pandas rich
+python3 -m pip install pandas rich
+```
+
+Альтернативно, на системах на основе Debian/Ubuntu:
+```bash
+sudo apt update
+sudo apt install python3-pandas python3-rich
+```
+
+На системах на основе RHEL/CentOS/Fedora:
+```bash
+sudo yum install python3-pandas python3-rich
+# или на более новых версиях
+sudo dnf install python3-pandas python3-rich
 ```
 
 ### 3. Настройка прав доступа к последовательному порту
@@ -169,6 +198,19 @@ sudo ./scripts/mount_disk.sh <device_path> <mount_point>
 2. Убедитесь, что файловая система XFS:
    ```bash
    sudo file -s /dev/disk/by-id/<wwn>-part1
+   ```
+
+### Проблемы с установкой Python-пакетов
+
+Если pip не найден:
+1. Попробуйте использовать `python3 -m pip` вместо `pip`
+2. Установите pip, если он не установлен:
+   ```bash
+   python3 -m ensurepip --upgrade
+   ```
+3. На системах Debian/Ubuntu установите через системный пакетный менеджер:
+   ```bash
+   sudo apt install python3-pip
    ```
 
 ## Обслуживание и обновление
