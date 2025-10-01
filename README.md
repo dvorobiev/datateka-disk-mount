@@ -99,13 +99,17 @@ wwn-0x5000039d68d2a2b3;1;1;M1
 
 Кратко:
 1. Клонируйте репозиторий или скачайте релиз
-2. Установите зависимости Python:
+2. Установите зависимости Python (если pip не найден, используйте `python3 -m pip`):
    ```bash
    pip install -r requirements.txt
    ```
    или
    ```bash
-   pip install pandas rich
+   python3 -m pip install -r requirements.txt
+   ```
+   или установите пакеты вручную:
+   ```bash
+   python3 -m pip install pandas rich
    ```
 3. Добавьте пользователя в группу dialout:
    ```bash
@@ -115,6 +119,7 @@ wwn-0x5000039d68d2a2b3;1;1;M1
    ```bash
    chmod +x scripts/*.sh
    chmod +x version.sh
+   chmod +x disk_state.sh
    ```
 5. Настройте файл `DISK_WWN.csv` под вашу конфигурацию
 
