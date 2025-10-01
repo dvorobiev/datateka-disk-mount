@@ -1,5 +1,10 @@
 # Утилита Datateka Disk Mount
 
+[![GitHub](https://img.shields.io/github/license/dvorobiev/datateka-disk-mount)](https://github.com/dvorobiev/datateka-disk-mount/blob/main/LICENSE)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/dvorobiev/datateka-disk-mount)](https://github.com/dvorobiev/datateka-disk-mount/releases)
+[![Python Version](https://img.shields.io/badge/python-3.x-blue)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-linux--64-lightgrey)](https://github.com/dvorobiev/datateka-disk-mount)
+
 Комплексная утилита для управления дисками в стеллаже хранения через последовательное соединение. Этот инструмент позволяет включать/выключать отдельные диски, монтировать/размонтировать их и отслеживать их состояние.
 
 ## Особенности
