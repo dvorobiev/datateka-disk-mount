@@ -21,17 +21,15 @@ show_help() {
     echo "Использование: $0 [опция]"
     echo ""
     echo "Опции:"
-    echo "  poweron <диск>        Включить диск (например: A1, B3)"
-    echo "  poweroff <диск>       Выключить диск (например: A1, B3)"
-    echo "  mount <диск>          Смонтировать диск (включает и монтирует)"
-    echo "  umount <диск>         Отмонтировать диск"
+    echo "  poweron <диск>        Включить и смонтировать диск (например: A1, B3)"
+    echo "  poweroff <диск>       Выключить и отмонтировать диск (например: A1, B3)"
     echo "  list                  Показать список дисков"
     echo "  status [<диск>]       Проверить статус диска или всех дисков"
     echo "  help                  Показать эту справку"
     echo ""
     echo "Примеры:"
-    echo "  $0 poweron A1         Включить диск A1"
-    echo "  $0 mount B3           Включить и смонтировать диск B3"
+    echo "  $0 poweron A1         Включить и смонтировать диск A1"
+    echo "  $0 poweroff B3        Выключить и отмонтировать диск B3"
     echo "  $0 list               Показать все диски"
 }
 
@@ -100,14 +98,22 @@ check_active_disks() {
     echo $current_active
 }
 
-# Функция для включения диска
-power_on_disk() {
+# Функция для включения и монтирования диска
+power_on() {
     local disk_notation="$1"
     
     # Проверка аргумента
     if [ -z "$disk_notation" ]; then
         echo -e "${RED}Ошибка: Требуется указать диск (например: A1, B3)${NC}"
         echo "Пример: $0 poweron A1"
+        return 1
+    fi
+    
+    # Проверяем количество активных дисков
+    local active_count=$(check_active_disks)
+    if [ $active_count -ge $MAX_ACTIVE_DISKS ]; then
+        echo -e "${RED}Ошибка: Достигнуто максимальное количество активных дисков ($MAX_ACTIVE_DISKS)${NC}"
+        echo -e "${BLUE}Текущее количество активных дисков: $active_count${NC}"
         return 1
     fi
     
@@ -122,15 +128,21 @@ power_on_disk() {
     
     echo -e "${YELLOW}Включение диска $disk_notation (Модуль $module, Позиция $position)${NC}"
     local command="#hdd_m${module} n${position} on\r\n"
-    if send_command "$command"; then
-        echo -e "${GREEN}Диск $disk_notation успешно включен${NC}"
-    else
+    if ! send_command "$command"; then
         return 1
     fi
+    
+    echo -e "${GREEN}Диск $disk_notation успешно включен${NC}"
+    
+    # Ждем немного, чтобы диск определился системой
+    sleep 3
+    
+    # Монтируем диск
+    mount_single_disk "$disk_notation"
 }
 
-# Функция для выключения диска
-power_off_disk() {
+# Функция для выключения и отмонтирования диска
+power_off() {
     local disk_notation="$1"
     
     # Проверка аргумента
@@ -149,6 +161,11 @@ power_off_disk() {
     local module=$(echo "$parsed" | cut -d' ' -f1)
     local position=$(echo "$parsed" | cut -d' ' -f2)
     
+    # Сначала отмонтируем диск, если он смонтирован
+    echo -e "${YELLOW}Отмонтирование диска $disk_notation...${NC}"
+    umount_single_disk "$disk_notation"
+    
+    # Затем выключаем диск
     echo -e "${YELLOW}Выключение диска $disk_notation (Модуль $module, Позиция $position)${NC}"
     local command="#hdd_m${module} n${position} off\r\n"
     if send_command "$command"; then
@@ -243,49 +260,6 @@ check_status() {
     fi
 }
 
-# Функция для включения и монтирования диска одной командой
-power_on_and_mount() {
-    local disk_notation="$1"
-    
-    # Проверка аргумента
-    if [ -z "$disk_notation" ]; then
-        echo -e "${RED}Ошибка: Требуется указать диск (например: A1, B3)${NC}"
-        echo "Пример: $0 mount A1"
-        return 1
-    fi
-    
-    # Проверяем количество активных дисков
-    local active_count=$(check_active_disks)
-    if [ $active_count -ge $MAX_ACTIVE_DISKS ]; then
-        echo -e "${RED}Ошибка: Достигнуто максимальное количество активных дисков ($MAX_ACTIVE_DISKS)${NC}"
-        echo -e "${BLUE}Текущее количество активных дисков: $active_count${NC}"
-        return 1
-    fi
-    
-    # Преобразуем нотацию диска
-    local parsed=$(parse_disk_notation "$disk_notation")
-    if [ $? -ne 0 ]; then
-        return 1
-    fi
-    
-    local module=$(echo "$parsed" | cut -d' ' -f1)
-    local position=$(echo "$parsed" | cut -d' ' -f2)
-    
-    echo -e "${YELLOW}Включение диска $disk_notation (Модуль $module, Позиция $position)${NC}"
-    local command="#hdd_m${module} n${position} on\r\n"
-    if ! send_command "$command"; then
-        return 1
-    fi
-    
-    echo -e "${GREEN}Диск $disk_notation успешно включен${NC}"
-    
-    # Ждем немного, чтобы диск определился системой
-    sleep 3
-    
-    # Монтируем диск
-    mount_single_disk "$disk_notation"
-}
-
 # Функция для монтирования одного диска (вспомогательная функция)
 mount_single_disk() {
     local disk_notation="$1"
@@ -334,13 +308,12 @@ mount_single_disk() {
     fi
 }
 
-# Функция для отмонтирования диска
-umount_disk() {
+# Функция для отмонтирования одного диска (вспомогательная функция)
+umount_single_disk() {
     local disk_notation="$1"
     
     if [ -z "$disk_notation" ]; then
-        echo -e "${RED}Ошибка: Требуется указать диск (например: A1, B3)${NC}"
-        return 1
+        return 0
     fi
     
     # Преобразуем нотацию диска
@@ -356,15 +329,13 @@ umount_disk() {
     local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}')
     
     if [ -z "$mount_point" ]; then
-        echo -e "${RED}Ошибка: Диск $disk_notation не найден в конфигурации${NC}"
-        return 1
+        return 0
     fi
     
     local full_mount_point="/mnt/$mount_point"
     
     # Проверяем, смонтирован ли диск
     if ! mountpoint -q "$full_mount_point" >/dev/null 2>&1; then
-        echo -e "${YELLOW}Диск $disk_notation уже отмонтирован${NC}"
         return 0
     fi
     
@@ -381,16 +352,10 @@ umount_disk() {
 # Основная логика
 case "$1" in
     poweron)
-        power_on_disk "$2"
+        power_on "$2"
         ;;
     poweroff)
-        power_off_disk "$2"
-        ;;
-    mount)
-        power_on_and_mount "$2"
-        ;;
-    umount)
-        umount_disk "$2"
+        power_off "$2"
         ;;
     list)
         list_disks
