@@ -150,3 +150,7 @@ Thumbs.db
 
 # Local configuration files
 disk_mount.code-workspace
+
+# GitHub reference files
+GITHUB_DESCRIPTION.md
+GITHUB_TOPICS.txt
