@@ -155,5 +155,5 @@ disk_mount.code-workspace
 GITHUB_DESCRIPTION.md
 GITHUB_TOPICS.txt
 
-# Release notes
-RELEASE_NOTES_*.md
+# Release notes (keep in repo for historical reference)
+!RELEASE_NOTES_*.md
