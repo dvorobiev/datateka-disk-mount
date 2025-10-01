@@ -1,72 +1,72 @@
-# Datateka Disk Mount Utility
+# Утилита Datateka Disk Mount
 
-A comprehensive utility for managing disk drives in a storage shelf through serial communication. This tool allows you to power on/off individual disks, mount/unmount them, and monitor their status.
+Комплексная утилита для управления дисками в стеллаже хранения через последовательное соединение. Этот инструмент позволяет включать/выключать отдельные диски, монтировать/размонтировать их и отслеживать их состояние.
 
-## Features
+## Особенности
 
-- Power on/off individual disks using serial commands
-- Mount/unmount XFS formatted disks
-- Monitor disk status and available space
-- Visual grid display of all disks in the storage shelf
-- Support for multiple disk modules and positions
-- Logging of all operations
+- Включение/выключение отдельных дисков с помощью последовательных команд
+- Монтирование/размонтирование дисков с файловой системой XFS
+- Отслеживание состояния дисков и доступного пространства
+- Визуальное отображение сетки всех дисков в стеллаже хранения
+- Поддержка нескольких модулей дисков и позиций
+- Ведение журнала всех операций
 
-## Components
+## Компоненты
 
-### Python Scripts
+### Python скрипты
 
-- `disk_state.py` - Main disk management utility with interactive interface
-- `power_on.py` - Simple script to power on a specific disk
+- `disk_state.py` - Основная утилита управления дисками с интерактивным интерфейсом
+- `power_on.py` - Простой скрипт для включения определенного диска
 
-### Shell Scripts
+### Shell скрипты
 
-- `scripts/mount_disk.sh` - Script to mount XFS disks with optimized parameters
-- `scripts/power_off.sh` - Script to power off a disk via serial port
-- `scripts/power_on.sh` - Script to power on a disk via serial port
+- `scripts/mount_disk.sh` - Скрипт для монтирования дисков XFS с оптимизированными параметрами
+- `scripts/power_off.sh` - Скрипт для выключения диска через последовательный порт
+- `scripts/power_on.sh` - Скрипт для включения диска через последовательный порт
 
-### Configuration
+### Конфигурация
 
-- `DISK_WWN.csv` - CSV file mapping WWN identifiers to disk positions and mount points
+- `DISK_WWN.csv` - CSV-файл, сопоставляющий идентификаторы WWN с позициями дисков и точками монтирования
 
-## Usage
+## Использование
 
-### Main Disk Manager
+### Основной менеджер дисков
 
 ```bash
 sudo python3 disk_state.py
 ```
 
-The main interface provides a visual grid showing the status of all disks:
-- ○ - Disk is powered off
-- ●/■ - Disk is powered on (● for 20TB+ disks, ■ for 18TB+ disks)
-- Orange ● - Disk is nearly full (>95%)
+Основной интерфейс предоставляет визуальную сетку, показывающую состояние всех дисков:
+- ○ - Диск выключен
+- ●/■ - Диск включен (● для дисков 20ТБ+, ■ для дисков 18ТБ+)
+- Оранжевый ● - Диск почти заполнен (>95%)
 
-Controls:
-1. Power on a disk
-2. Power off a disk
-3. Refresh the display
-q. Quit
+Управление:
+1. Включить диск
+2. Выключить диск
+3. Обновить отображение
+q. Выйти
 
-### Command Line Scripts
+### Скрипты командной строки
 
-Power on a disk:
+Включить диск:
 ```bash
-sudo ./scripts/power_on.sh <module> <position>
+sudo ./scripts/power_on.sh <модуль> <позиция>
 ```
 
-Power off a disk:
+Выключить диск:
 ```bash
-sudo ./scripts/power_off.sh <module> <position>
+sudo ./scripts/power_off.sh <модуль> <позиция>
 ```
 
-Mount a disk:
+Смонтировать диск:
 ```bash
-sudo ./scripts/mount_disk.sh <device_path> <mount_point>
+sudo ./scripts/mount_disk.sh <путь_к_устройству> <точка_монтирования>
 ```
 
-## Configuration
+## Конфигурация
 
-The `DISK_WWN.csv` file contains the mapping between disk WWN identifiers and their physical positions:
+Файл `DISK_WWN.csv` содержит сопоставление между идентификаторами WWN дисков и их физическими позициями:
 
 ```
 wwn;module;position;mount_point
@@ -74,37 +74,41 @@ wwn-0x5000039d68d2a2b3;1;1;M1
 ...
 ```
 
-- `wwn`: World Wide Name identifier for the disk
-- `module`: Module number (1-5)
-- `position`: Position within the module (1-12)
-- `mount_point`: Directory name where the disk will be mounted under `/mnt/`
+- `wwn`: Идентификатор World Wide Name для диска
+- `module`: Номер модуля (1-5)
+- `position`: Позиция в модуле (1-12)
+- `mount_point`: Имя каталога, где диск будет смонтирован в `/mnt/`
 
-## Requirements
+## Требования
 
 - Python 3.x
 - pandas
 - rich
-- XFS formatted disks
-- Serial connection to disk controller
-- Root privileges for hardware control
+- Диски с файловой системой XFS
+- Последовательное соединение с контроллером дисков
+- Права суперпользователя для управления оборудованием
 
-## Installation
+## Установка
 
-1. Install required Python packages:
+1. Установите необходимые пакеты Python:
    ```bash
    pip install pandas rich
    ```
 
-2. Ensure the serial port is accessible:
+2. Убедитесь, что последовательный порт доступен:
    ```bash
    sudo usermod -a -G dialout $USER
    ```
 
-3. Make scripts executable:
+3. Сделайте скрипты исполняемыми:
    ```bash
    chmod +x scripts/*.sh
    ```
 
-## License
+## Версионность
 
-This project is licensed under the MIT License.
+Версия: 1.0.0
+
+## Лицензия
+
+Этот проект лицензирован по лицензии MIT.
