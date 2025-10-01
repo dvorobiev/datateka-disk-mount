@@ -1,0 +1,10 @@
+disk-management
+storage-system
+serial-communication
+python
+bash
+linux
+xfs
+hardware-control
+disk-mounting
+sysadmin
