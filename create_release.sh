@@ -13,13 +13,20 @@ fi
 GITHUB_TOKEN=$1
 REPO_OWNER="dvorobiev"
 REPO_NAME="datateka-disk-mount"
-TAG_NAME="v1.0.0"
-RELEASE_NAME="Version 1.0.0"
-RELEASE_NOTES_FILE="RELEASE_NOTES_v1.0.0.md"
+TAG_NAME="v1.1.0"
+RELEASE_NAME="Version 1.1.0"
+RELEASE_NOTES_FILE="RELEASE_NOTES_v1.1.0.md"
+ASSET_FILE="datateka_disk_manager_light.tar.gz"
 
 # Check if release notes file exists
 if [ ! -f "$RELEASE_NOTES_FILE" ]; then
     echo "Release notes file not found: $RELEASE_NOTES_FILE"
+    exit 1
+fi
+
+# Check if asset file exists
+if [ ! -f "$ASSET_FILE" ]; then
+    echo "Asset file not found: $ASSET_FILE"
     exit 1
 fi
 
@@ -47,6 +54,18 @@ EOF
 # Check if release was created successfully
 if echo "$RESPONSE" | grep -q '"id"'; then
     echo "Release created successfully!"
+    RELEASE_ID=$(echo "$RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+    echo "Release ID: $RELEASE_ID"
+    
+    # Upload asset
+    echo "Uploading asset $ASSET_FILE..."
+    curl -s -X POST \
+      -H "Authorization: token $GITHUB_TOKEN" \
+      -H "Content-Type: application/gzip" \
+      --data-binary @"$ASSET_FILE" \
+      "https://uploads.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/$RELEASE_ID/assets?name=$(basename $ASSET_FILE)"
+    
+    echo "Asset uploaded successfully!"
     echo "Release URL: https://github.com/$REPO_OWNER/$REPO_NAME/releases/tag/$TAG_NAME"
 else
     echo "Failed to create release:"
