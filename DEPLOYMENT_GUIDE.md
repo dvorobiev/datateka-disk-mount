@@ -59,6 +59,7 @@ sudo usermod -a -G dialout $USER
 chmod +x scripts/*.sh
 chmod +x version.sh
 chmod +x create_release.sh
+chmod +x disk_state.sh
 ```
 
 ### 5. Настройка конфигурации дисков
@@ -101,10 +102,19 @@ sudo python3 disk_state.py
 
 ### Основная утилита
 
-Запустите основную утилиту управления дисками:
-```bash
-sudo python3 disk_state.py
-```
+Запустите основную утилиту управления дисками двумя способами:
+
+1. Напрямую через Python:
+   ```bash
+   sudo python3 disk_state.py
+   ```
+
+2. Через вспомогательный скрипт (рекомендуется):
+   ```bash
+   ./disk_state.sh
+   ```
+   
+   Этот скрипт автоматически проверяет диагностику системы и запускает утилиту с правильными параметрами.
 
 ### Индивидуальные скрипты
 
