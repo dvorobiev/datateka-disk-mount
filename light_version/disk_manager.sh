@@ -6,6 +6,7 @@
 # Конфигурация
 SERIAL_PORT="/dev/ttyUSB0"
 CSV_FILE="DISK_WWN.csv"
+MAX_ACTIVE_DISKS=6
 
 # Цвета для вывода
 RED='\033[0;31m'
@@ -20,17 +21,18 @@ show_help() {
     echo "Использование: $0 [опция]"
     echo ""
     echo "Опции:"
-    echo "  poweron <модуль> <позиция>    Включить диск"
-    echo "  poweroff <модуль> <позиция>   Выключить диск"
-    echo "  list                          Показать список дисков"
-    echo "  status <модуль> <позиция>     Проверить статус диска (если смонтирован)"
-    echo "  mount <модуль> <позиция>      Смонтировать диск"
-    echo "  umount <модуль> <позиция>     Отмонтировать диск"
-    echo "  help                          Показать эту справку"
+    echo "  poweron <диск>        Включить диск (например: A1, B3)"
+    echo "  poweroff <диск>       Выключить диск (например: A1, B3)"
+    echo "  mount <диск>          Смонтировать диск (включает и монтирует)"
+    echo "  umount <диск>         Отмонтировать диск"
+    echo "  list                  Показать список дисков"
+    echo "  status [<диск>]       Проверить статус диска или всех дисков"
+    echo "  help                  Показать эту справку"
     echo ""
     echo "Примеры:"
-    echo "  $0 poweron 1 1               Включить диск в модуле 1, позиция 1"
-    echo "  $0 list                      Показать все диски"
+    echo "  $0 poweron A1         Включить диск A1"
+    echo "  $0 mount B3           Включить и смонтировать диск B3"
+    echo "  $0 list               Показать все диски"
 }
 
 # Функция для проверки существования serial порта
@@ -58,28 +60,70 @@ send_command() {
     return 0
 }
 
+# Функция для преобразования нотации диска (A1 -> модуль 1, позиция 1)
+parse_disk_notation() {
+    local disk_notation="$1"
+    
+    # Проверка формата (буква + число)
+    if ! [[ "$disk_notation" =~ ^[A-Z][0-9]+$ ]]; then
+        echo -e "${RED}Ошибка: Неверный формат диска. Используйте формат: буква + число (например: A1, B3)${NC}"
+        return 1
+    fi
+    
+    # Извлекаем букву и число
+    local letter="${disk_notation:0:1}"
+    local number="${disk_notation:1}"
+    
+    # Преобразуем букву в номер модуля (A=1, B=2, и т.д.)
+    local module=$(printf "%d" "'$letter")
+    module=$((module - 64))  # ASCII 'A' = 65, поэтому A=1, B=2, ...
+    
+    # Проверяем, что номер модуля в допустимом диапазоне
+    if [ $module -lt 1 ] || [ $module -gt 5 ]; then
+        echo -e "${RED}Ошибка: Номер модуля должен быть от 1 до 5${NC}"
+        return 1
+    fi
+    
+    # Проверяем, что позиция в допустимом диапазоне
+    if [ $number -lt 1 ] || [ $number -gt 12 ]; then
+        echo -e "${RED}Ошибка: Позиция должна быть от 1 до 12${NC}"
+        return 1
+    fi
+    
+    echo "$module $number"
+    return 0
+}
+
+# Функция для проверки количества активных дисков
+check_active_disks() {
+    local current_active=$(mount | grep "/mnt/" | wc -l)
+    echo $current_active
+}
+
 # Функция для включения диска
 power_on_disk() {
-    local module="$1"
-    local position="$2"
+    local disk_notation="$1"
     
-    # Проверка аргументов
-    if [ -z "$module" ] || [ -z "$position" ]; then
-        echo -e "${RED}Ошибка: Требуются оба аргумента: модуль и позиция${NC}"
-        echo "Пример: $0 poweron 1 1"
+    # Проверка аргумента
+    if [ -z "$disk_notation" ]; then
+        echo -e "${RED}Ошибка: Требуется указать диск (например: A1, B3)${NC}"
+        echo "Пример: $0 poweron A1"
         return 1
     fi
     
-    # Проверка, что аргументы числовые
-    if ! [[ "$module" =~ ^[0-9]+$ ]] || ! [[ "$position" =~ ^[0-9]+$ ]]; then
-        echo -e "${RED}Ошибка: Модуль и позиция должны быть числами${NC}"
+    # Преобразуем нотацию диска
+    local parsed=$(parse_disk_notation "$disk_notation")
+    if [ $? -ne 0 ]; then
         return 1
     fi
     
-    echo -e "${YELLOW}Включение диска: Модуль $module, Позиция $position${NC}"
+    local module=$(echo "$parsed" | cut -d' ' -f1)
+    local position=$(echo "$parsed" | cut -d' ' -f2)
+    
+    echo -e "${YELLOW}Включение диска $disk_notation (Модуль $module, Позиция $position)${NC}"
     local command="#hdd_m${module} n${position} on\r\n"
     if send_command "$command"; then
-        echo -e "${GREEN}Диск в модуле $module, позиции $position успешно включен${NC}"
+        echo -e "${GREEN}Диск $disk_notation успешно включен${NC}"
     else
         return 1
     fi
@@ -87,26 +131,28 @@ power_on_disk() {
 
 # Функция для выключения диска
 power_off_disk() {
-    local module="$1"
-    local position="$2"
+    local disk_notation="$1"
     
-    # Проверка аргументов
-    if [ -z "$module" ] || [ -z "$position" ]; then
-        echo -e "${RED}Ошибка: Требуются оба аргумента: модуль и позиция${NC}"
-        echo "Пример: $0 poweroff 1 1"
+    # Проверка аргумента
+    if [ -z "$disk_notation" ]; then
+        echo -e "${RED}Ошибка: Требуется указать диск (например: A1, B3)${NC}"
+        echo "Пример: $0 poweroff A1"
         return 1
     fi
     
-    # Проверка, что аргументы числовые
-    if ! [[ "$module" =~ ^[0-9]+$ ]] || ! [[ "$position" =~ ^[0-9]+$ ]]; then
-        echo -e "${RED}Ошибка: Модуль и позиция должны быть числами${NC}"
+    # Преобразуем нотацию диска
+    local parsed=$(parse_disk_notation "$disk_notation")
+    if [ $? -ne 0 ]; then
         return 1
     fi
     
-    echo -e "${YELLOW}Выключение диска: Модуль $module, Позиция $position${NC}"
+    local module=$(echo "$parsed" | cut -d' ' -f1)
+    local position=$(echo "$parsed" | cut -d' ' -f2)
+    
+    echo -e "${YELLOW}Выключение диска $disk_notation (Модуль $module, Позиция $position)${NC}"
     local command="#hdd_m${module} n${position} off\r\n"
     if send_command "$command"; then
-        echo -e "${GREEN}Диск в модуле $module, позиции $position успешно выключен${NC}"
+        echo -e "${GREEN}Диск $disk_notation успешно выключен${NC}"
     else
         return 1
     fi
@@ -120,29 +166,66 @@ list_disks() {
     fi
     
     echo -e "${BLUE}Список дисков:${NC}"
-    echo "WWN;Модуль;Позиция;Точка монтирования"
+    echo "Диск;WWN;Модуль;Позиция;Точка монтирования"
     echo "----------------------------------------"
     # Пропускаем первую строку (заголовок) и выводим остальные
     tail -n +2 "$CSV_FILE" | while IFS=';' read -r wwn module position mount_point; do
-        echo "$wwn;$module;$position;$mount_point"
+        # Преобразуем номер модуля в букву
+        local module_letter=$(printf "\\$(printf '%03o' $((module + 64)))")
+        local disk_id="${module_letter}${position}"
+        echo "$disk_id;$wwn;$module;$position;$mount_point"
     done
 }
 
 # Функция для проверки статуса диска (смонтирован/не смонтирован)
 check_status() {
-    local module="$1"
-    local position="$2"
+    local disk_notation="$1"
     
-    if [ -z "$module" ] || [ -z "$position" ]; then
-        echo -e "${RED}Ошибка: Требуются оба аргумента: модуль и позиция${NC}"
+    if [ -z "$disk_notation" ]; then
+        # Проверяем статус всех дисков
+        local total_disks=0
+        local active_disks=0
+        
+        tail -n +2 "$CSV_FILE" | while IFS=';' read -r wwn module position mount_point; do
+            total_disks=$((total_disks + 1))
+            local full_mount_point="/mnt/$mount_point"
+            
+            # Преобразуем номер модуля в букву
+            local module_letter=$(printf "\\$(printf '%03o' $((module + 64)))")
+            local disk_id="${module_letter}${position}"
+            
+            if mountpoint -q "$full_mount_point" >/dev/null 2>&1; then
+                active_disks=$((active_disks + 1))
+                echo -e "${GREEN}Диск $disk_id (модуль $module, позиция $position) СМОНТИРОВАН в $full_mount_point${NC}"
+                # Показываем информацию о свободном месте
+                if command -v df >/dev/null 2>&1; then
+                    df -h "$full_mount_point" | tail -n +2
+                fi
+            else
+                echo -e "${YELLOW}Диск $disk_id (модуль $module, позиция $position) НЕ СМОНТИРОВАН${NC}"
+            fi
+        done
+        
+        echo -e "${BLUE}Общее количество дисков: $total_disks${NC}"
+        echo -e "${BLUE}Активных дисков: $active_disks из $MAX_ACTIVE_DISKS${NC}"
+        
+        return 0
+    fi
+    
+    # Проверяем конкретный диск
+    local parsed=$(parse_disk_notation "$disk_notation")
+    if [ $? -ne 0 ]; then
         return 1
     fi
+    
+    local module=$(echo "$parsed" | cut -d' ' -f1)
+    local position=$(echo "$parsed" | cut -d' ' -f2)
     
     # Получаем точку монтирования из CSV файла
     local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}')
     
     if [ -z "$mount_point" ]; then
-        echo -e "${RED}Ошибка: Диск с модулем $module и позицией $position не найден в конфигурации${NC}"
+        echo -e "${RED}Ошибка: Диск $disk_notation не найден в конфигурации${NC}"
         return 1
     fi
     
@@ -150,36 +233,81 @@ check_status() {
     local full_mount_point="/mnt/$mount_point"
     
     if mountpoint -q "$full_mount_point" >/dev/null 2>&1; then
-        echo -e "${GREEN}Диск в модуле $module, позиции $position СМОНТИРОВАН в $full_mount_point${NC}"
+        echo -e "${GREEN}Диск $disk_notation СМОНТИРОВАН в $full_mount_point${NC}"
         # Показываем информацию о свободном месте
         if command -v df >/dev/null 2>&1; then
             df -h "$full_mount_point" | tail -n +2
         fi
     else
-        echo -e "${YELLOW}Диск в модуле $module, позиции $position НЕ СМОНТИРОВАН${NC}"
+        echo -e "${YELLOW}Диск $disk_notation НЕ СМОНТИРОВАН${NC}"
     fi
 }
 
-# Функция для монтирования диска
-mount_disk() {
-    local module="$1"
-    local position="$2"
+# Функция для включения и монтирования диска одной командой
+power_on_and_mount() {
+    local disk_notation="$1"
     
-    if [ -z "$module" ] || [ -z "$position" ]; then
-        echo -e "${RED}Ошибка: Требуются оба аргумента: модуль и позиция${NC}"
+    # Проверка аргумента
+    if [ -z "$disk_notation" ]; then
+        echo -e "${RED}Ошибка: Требуется указать диск (например: A1, B3)${NC}"
+        echo "Пример: $0 mount A1"
         return 1
     fi
+    
+    # Проверяем количество активных дисков
+    local active_count=$(check_active_disks)
+    if [ $active_count -ge $MAX_ACTIVE_DISKS ]; then
+        echo -e "${RED}Ошибка: Достигнуто максимальное количество активных дисков ($MAX_ACTIVE_DISKS)${NC}"
+        echo -e "${BLUE}Текущее количество активных дисков: $active_count${NC}"
+        return 1
+    fi
+    
+    # Преобразуем нотацию диска
+    local parsed=$(parse_disk_notation "$disk_notation")
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+    
+    local module=$(echo "$parsed" | cut -d' ' -f1)
+    local position=$(echo "$parsed" | cut -d' ' -f2)
+    
+    echo -e "${YELLOW}Включение диска $disk_notation (Модуль $module, Позиция $position)${NC}"
+    local command="#hdd_m${module} n${position} on\r\n"
+    if ! send_command "$command"; then
+        return 1
+    fi
+    
+    echo -e "${GREEN}Диск $disk_notation успешно включен${NC}"
+    
+    # Ждем немного, чтобы диск определился системой
+    sleep 3
+    
+    # Монтируем диск
+    mount_single_disk "$disk_notation"
+}
+
+# Функция для монтирования одного диска (вспомогательная функция)
+mount_single_disk() {
+    local disk_notation="$1"
+    
+    # Преобразуем нотацию диска
+    local parsed=$(parse_disk_notation "$disk_notation")
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+    
+    local module=$(echo "$parsed" | cut -d' ' -f1)
+    local position=$(echo "$parsed" | cut -d' ' -f2)
     
     # Получаем WWN и точку монтирования из CSV файла
-    local disk_info=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $1 ";" $4}')
+    local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}')
+    local wwn=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $1}')
     
-    if [ -z "$disk_info" ]; then
-        echo -e "${RED}Ошибка: Диск с модулем $module и позицией $position не найден в конфигурации${NC}"
+    if [ -z "$mount_point" ] || [ -z "$wwn" ]; then
+        echo -e "${RED}Ошибка: Диск $disk_notation не найден в конфигурации${NC}"
         return 1
     fi
     
-    local wwn=$(echo "$disk_info" | cut -d';' -f1)
-    local mount_point=$(echo "$disk_info" | cut -d';' -f2)
     local full_mount_point="/mnt/$mount_point"
     local device_path="/dev/disk/by-id/${wwn}-part1"
     
@@ -197,9 +325,9 @@ mount_disk() {
     
     # Монтируем с оптимизированными параметрами для XFS
     if mount -t xfs -o noatime,nodiratime,logbufs=8,logbsize=256k,largeio,inode64,swalloc,allocsize=131072k "$device_path" "$full_mount_point"; then
-        echo -e "${GREEN}Диск успешно смонтирован в $full_mount_point${NC}"
+        echo -e "${GREEN}Диск $disk_notation успешно смонтирован в $full_mount_point${NC}"
     else
-        echo -e "${RED}Ошибка при монтировании диска${NC}"
+        echo -e "${RED}Ошибка при монтировании диска $disk_notation${NC}"
         # Показываем последние сообщения ядра
         dmesg | tail -n 10
         return 1
@@ -208,19 +336,27 @@ mount_disk() {
 
 # Функция для отмонтирования диска
 umount_disk() {
-    local module="$1"
-    local position="$2"
+    local disk_notation="$1"
     
-    if [ -z "$module" ] || [ -z "$position" ]; then
-        echo -e "${RED}Ошибка: Требуются оба аргумента: модуль и позиция${NC}"
+    if [ -z "$disk_notation" ]; then
+        echo -e "${RED}Ошибка: Требуется указать диск (например: A1, B3)${NC}"
         return 1
     fi
+    
+    # Преобразуем нотацию диска
+    local parsed=$(parse_disk_notation "$disk_notation")
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+    
+    local module=$(echo "$parsed" | cut -d' ' -f1)
+    local position=$(echo "$parsed" | cut -d' ' -f2)
     
     # Получаем точку монтирования из CSV файла
     local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}')
     
     if [ -z "$mount_point" ]; then
-        echo -e "${RED}Ошибка: Диск с модулем $module и позицией $position не найден в конфигурации${NC}"
+        echo -e "${RED}Ошибка: Диск $disk_notation не найден в конфигурации${NC}"
         return 1
     fi
     
@@ -228,16 +364,16 @@ umount_disk() {
     
     # Проверяем, смонтирован ли диск
     if ! mountpoint -q "$full_mount_point" >/dev/null 2>&1; then
-        echo -e "${YELLOW}Диск в модуле $module, позиции $position уже отмонтирован${NC}"
+        echo -e "${YELLOW}Диск $disk_notation уже отмонтирован${NC}"
         return 0
     fi
     
     echo -e "${YELLOW}Отмонтирование $full_mount_point...${NC}"
     
     if umount "$full_mount_point"; then
-        echo -e "${GREEN}Диск успешно отмонтирован${NC}"
+        echo -e "${GREEN}Диск $disk_notation успешно отмонтирован${NC}"
     else
-        echo -e "${RED}Ошибка при отмонтировании диска${NC}"
+        echo -e "${RED}Ошибка при отмонтировании диска $disk_notation${NC}"
         return 1
     fi
 }
@@ -245,22 +381,22 @@ umount_disk() {
 # Основная логика
 case "$1" in
     poweron)
-        power_on_disk "$2" "$3"
+        power_on_disk "$2"
         ;;
     poweroff)
-        power_off_disk "$2" "$3"
+        power_off_disk "$2"
+        ;;
+    mount)
+        power_on_and_mount "$2"
+        ;;
+    umount)
+        umount_disk "$2"
         ;;
     list)
         list_disks
         ;;
     status)
-        check_status "$2" "$3"
-        ;;
-    mount)
-        mount_disk "$2" "$3"
-        ;;
-    umount)
-        umount_disk "$2" "$3"
+        check_status "$2"
         ;;
     help|--help|-h)
         show_help
