@@ -154,3 +154,6 @@ disk_mount.code-workspace
 # GitHub reference files
 GITHUB_DESCRIPTION.md
 GITHUB_TOPICS.txt
+
+# Release notes
+RELEASE_NOTES_*.md
