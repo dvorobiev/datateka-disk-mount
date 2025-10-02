@@ -187,6 +187,12 @@ list_disks() {
     echo "----------------------------------------"
     # Пропускаем первую строку (заголовок) и выводим остальные
     tail -n +2 "$CSV_FILE" | while IFS=';' read -r wwn module position mount_point; do
+        # Убираем \r из конца строки
+        mount_point=$(echo "$mount_point" | tr -d '\r')
+        module=$(echo "$module" | tr -d '\r')
+        position=$(echo "$position" | tr -d '\r')
+        wwn=$(echo "$wwn" | tr -d '\r')
+        
         # Преобразуем номер модуля в букву
         local module_letter=$(printf "\\$(printf '%03o' $((module + 64)))")
         local disk_id="${module_letter}${position}"
@@ -204,6 +210,12 @@ check_status() {
         local active_disks=0
         
         tail -n +2 "$CSV_FILE" | while IFS=';' read -r wwn module position mount_point; do
+            # Убираем \r из конца строки
+            mount_point=$(echo "$mount_point" | tr -d '\r')
+            module=$(echo "$module" | tr -d '\r')
+            position=$(echo "$position" | tr -d '\r')
+            wwn=$(echo "$wwn" | tr -d '\r')
+            
             total_disks=$((total_disks + 1))
             local full_mount_point="/mnt/$mount_point"
             
@@ -238,15 +250,16 @@ check_status() {
     local module=$(echo "$parsed" | cut -d' ' -f1)
     local position=$(echo "$parsed" | cut -d' ' -f2)
     
-    # Получаем точку монтирования из CSV файла
-    local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}')
+    # Получаем точку монтирования из CSV файла (убираем \r в конце)
+    local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}' | tr -d '\r')
     
     if [ -z "$mount_point" ]; then
         echo -e "${RED}Ошибка: Диск $disk_notation не найден в конфигурации${NC}"
         return 1
     fi
     
-    # Формируем полный путь к точке монтирования
+    # Убираем \r из имени директории
+    mount_point=$(echo "$mount_point" | tr -d '\r')
     local full_mount_point="/mnt/$mount_point"
     
     if mountpoint -q "$full_mount_point" >/dev/null 2>&1; then
@@ -273,9 +286,9 @@ mount_single_disk() {
     local module=$(echo "$parsed" | cut -d' ' -f1)
     local position=$(echo "$parsed" | cut -d' ' -f2)
     
-    # Получаем WWN и точку монтирования из CSV файла
-    local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}')
-    local wwn=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $1}')
+    # Получаем WWN и точку монтирования из CSV файла (убираем \r в конце)
+    local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}' | tr -d '\r')
+    local wwn=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $1}' | tr -d '\r')
     
     if [ -z "$mount_point" ] || [ -z "$wwn" ]; then
         echo -e "${RED}Ошибка: Диск $disk_notation не найден в конфигурации${NC}"
@@ -292,7 +305,9 @@ mount_single_disk() {
         return 1
     fi
     
-    # Создаем точку монтирования, если её нет
+    # Создаем точку монтирования, если её нет (убираем \r из имени директории)
+    mount_point=$(echo "$mount_point" | tr -d '\r')
+    full_mount_point="/mnt/$mount_point"
     mkdir -p "$full_mount_point"
     
     echo -e "${YELLOW}Монтирование $device_path в $full_mount_point...${NC}"
@@ -325,13 +340,15 @@ umount_single_disk() {
     local module=$(echo "$parsed" | cut -d' ' -f1)
     local position=$(echo "$parsed" | cut -d' ' -f2)
     
-    # Получаем точку монтирования из CSV файла
-    local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}')
+    # Получаем точку монтирования из CSV файла (убираем \r в конце)
+    local mount_point=$(tail -n +2 "$CSV_FILE" | awk -F';' -v mod="$module" -v pos="$position" '$2==mod && $3==pos {print $4}' | tr -d '\r')
     
     if [ -z "$mount_point" ]; then
         return 0
     fi
     
+    # Убираем \r из имени директории
+    mount_point=$(echo "$mount_point" | tr -d '\r')
     local full_mount_point="/mnt/$mount_point"
     
     # Проверяем, смонтирован ли диск
